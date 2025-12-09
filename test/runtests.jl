@@ -3,25 +3,19 @@ using PathMacro
 
 const P = PathMacro
 
-function parsed_expr(str)
-    return Meta.parse(str)
-end
-
 @testset "PathMacro" begin
     @testset "literal" begin
-        input = parsed_expr("\"foo\"")
-        parsed = P.parse_path(input)
+        parsed = P.parse_path("foo")
         @test parsed == P.ParsedPath(["foo"], P.ParsedCommand[])
 
         lowered = P.lower_parsed(parsed)
-        @test lowered == :("foo")
+        @test lowered == "foo"
 
         @test path"foo" == "foo"
     end
 
     @testset "join with slash" begin
-        input = parsed_expr("\"foo/bar\"")
-        parsed = P.parse_path(input)
+        parsed = P.parse_path("foo/bar")
         expected_cmds = [P.ParsedCommand("join", ["bar"])]
         @test parsed == P.ParsedPath(["foo"], expected_cmds)
 
@@ -32,8 +26,7 @@ end
     end
 
     @testset "dir command" begin
-        input = parsed_expr("\"foo|dir\"")
-        parsed = P.parse_path(input)
+        parsed = P.parse_path("foo|dir")
         expected_cmds = [P.ParsedCommand("dir", Any[])]
         @test parsed == P.ParsedPath(["foo"], expected_cmds)
 
@@ -44,8 +37,7 @@ end
     end
 
     @testset "abs command" begin
-        input = parsed_expr("\"foo|abs\"")
-        parsed = P.parse_path(input)
+        parsed = P.parse_path("foo|abs")
         expected_cmds = [P.ParsedCommand("abs", Any[])]
         @test parsed == P.ParsedPath(["foo"], expected_cmds)
 
@@ -56,8 +48,7 @@ end
     end
 
     @testset "join command" begin
-        input = parsed_expr("\"foo|join:bar\"")
-        parsed = P.parse_path(input)
+        parsed = P.parse_path("foo|join:bar")
         expected_cmds = [P.ParsedCommand("join", ["bar"])]
         @test parsed == P.ParsedPath(["foo"], expected_cmds)
 
@@ -68,8 +59,7 @@ end
     end
 
     @testset "nested dir after slash" begin
-        input = parsed_expr("\"foo/bar|dir\"")
-        parsed = P.parse_path(input)
+        parsed = P.parse_path("foo/bar|dir")
         expected_cmds = [
             P.ParsedCommand("join", ["bar"]),
             P.ParsedCommand("dir", Any[]),
@@ -84,8 +74,7 @@ end
 
     @testset "interpolation dir sugar" begin
         foo = "/tmp/mydir"
-        input = parsed_expr("\"$foo/..\"")
-        parsed = P.parse_path(input)
+        parsed = P.parse_path("\$foo/..")
         expected_cmds = [P.ParsedCommand("dir", Any[])]
         @test parsed == P.ParsedPath([:(foo)], expected_cmds)
 
@@ -98,8 +87,7 @@ end
     @testset "interpolation rel" begin
         foo = "/tmp/mydir"
         baz = "/tmp"
-        input = parsed_expr("\"$foo/bar|rel:$baz\"")
-        parsed = P.parse_path(input)
+        parsed = P.parse_path("\$foo/bar|rel:\$baz")
         expected_cmds = [
             P.ParsedCommand("join", ["bar"]),
             P.ParsedCommand("rel", [:baz]),
@@ -115,8 +103,7 @@ end
     @testset "complex chain" begin
         foo2 = "/tmp/qux"
         baz2 = "/tmp/base"
-        input = parsed_expr("\"$foo2.d/../bar|rel:$baz2\"")
-        parsed = P.parse_path(input)
+        parsed = P.parse_path("\$foo2.d/../bar|rel:\$baz2")
         expected_cmds = [
             P.ParsedCommand("join", ["bar"]),
             P.ParsedCommand("rel", [:baz2]),
@@ -133,8 +120,7 @@ end
 
     @testset "subdir interpolation then join" begin
         sub = "subdir"
-        input = parsed_expr("\"foo/$sub|join:baz\"")
-        parsed = P.parse_path(input)
+        parsed = P.parse_path("foo/\$sub|join:baz")
         expected_cmds = [
             P.ParsedCommand("join", [:sub]),
             P.ParsedCommand("join", ["baz"]),

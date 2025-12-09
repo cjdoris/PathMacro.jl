@@ -12,6 +12,9 @@ struct ParsedPath
     commands::Vector{ParsedCommand}
 end
 
+Base.:(==)(a::ParsedCommand, b::ParsedCommand) = a.name == b.name && a.args == b.args
+Base.:(==)(a::ParsedPath, b::ParsedPath) = a.initial == b.initial && a.commands == b.commands
+
 function push_segment!(segments::Vector{Any}, piece)
     if piece === ""
         return segments
@@ -25,105 +28,84 @@ end
 
 function parse_path(input)
     raw = String(input)
-    str_expr = Meta.parse("\"$(escape_string(raw))\"")
-    parts = str_expr isa Expr && str_expr.head == :string ? str_expr.args : Any[str_expr]
-    interpolations = [part for part in parts if part isa Expr]
 
-    idx_interp = 1
-    function next_interpolation()
-        idx_interp > length(interpolations) && error("interpolation marker found without matching expression")
-        expr = interpolations[idx_interp]
-        idx_interp += 1
-        return expr
-    end
-
-    function parse_interpolation(raw::String, start::Int)
-        expr = next_interpolation()
-        _, newidx = Meta.parse(raw, start + 1; greedy = false)
+    function parse_interpolation(start::Int)
+        expr, newidx = Meta.parse(raw, nextind(raw, start); greedy = false)
         return expr, newidx
     end
 
-    initial_segments = Any[]
-    commands = ParsedCommand[]
+    function parse_segments_until(start::Int, stops::Vector{Char})
+        segments = Any[]
+        i = start
+        last = lastindex(raw)
 
-    i = firstindex(raw)
+        while i <= last
+            idx = findnext(c -> c == '$' || c in stops, raw, i)
+
+            if idx === nothing
+                push_segment!(segments, raw[i:last])
+                return segments, last + 1
+            end
+
+            if idx > i
+                push_segment!(segments, raw[i:prevind(raw, idx)])
+            end
+
+            ch = raw[idx]
+            if ch == '$'
+                expr, newidx = parse_interpolation(idx)
+                push!(segments, expr)
+                i = newidx
+            else
+                return segments, idx
+            end
+        end
+
+        return segments, last + 1
+    end
+
+    function parse_command_name(start::Int)
+        i = start
+        last = lastindex(raw)
+        while i <= last
+            ch = raw[i]
+            if ch == ':' || ch == '|' || ch == '/'
+                break
+            elseif ch == '$'
+                error("command names cannot include interpolation")
+            end
+            i = nextind(raw, i)
+        end
+        name = raw[start:prevind(raw, i)]
+        isempty(name) && error("expected command name after '|'")
+        return name, i
+    end
+
+    initial_segments, i = parse_segments_until(firstindex(raw), ['|', '/'])
+    commands = ParsedCommand[]
     last = lastindex(raw)
 
     while i <= last
         ch = raw[i]
-        if ch == '|'
-            i = nextind(raw, i)
-
-            cmdname = String()
-            while i <= last
-                ch_cmd = raw[i]
-                if ch_cmd == ':' || ch_cmd == '|' || ch_cmd == '/'
-                    break
-                elseif ch_cmd == '$'
-                    error("command names cannot include interpolation")
-                else
-                    cmdname *= ch_cmd
-                    i = nextind(raw, i)
-                end
-            end
-
-            isempty(cmdname) && error("expected command name after '|'")
-
-            arg_segments = Any[]
-            if i <= last && raw[i] == ':'
-                i = nextind(raw, i)
-                while i <= last
-                    ch_arg = raw[i]
-                    if ch_arg == '|' || ch_arg == '/'
-                        break
-                    elseif ch_arg == '$'
-                        expr, newidx = parse_interpolation(raw, i)
-                        push!(arg_segments, expr)
-                        i = newidx
-                    else
-                        push_segment!(arg_segments, string(ch_arg))
-                        i = nextind(raw, i)
-                    end
-                end
-            end
-
-            push!(commands, ParsedCommand(cmdname, arg_segments))
-            continue
-        elseif ch == '/'
-            i = nextind(raw, i)
-            arg_segments = Any[]
-            while i <= last
-                ch_arg = raw[i]
-                if ch_arg == '|' || ch_arg == '/'
-                    break
-                elseif ch_arg == '$'
-                    expr, newidx = parse_interpolation(raw, i)
-                    push!(arg_segments, expr)
-                    i = newidx
-                else
-                    push_segment!(arg_segments, string(ch_arg))
-                    i = nextind(raw, i)
-                end
-            end
-
+        if ch == '/'
+            arg_segments, next_i = parse_segments_until(nextind(raw, i), ['|', '/'])
             if length(arg_segments) == 1 && arg_segments[1] == ".."
                 push!(commands, ParsedCommand("dir", Any[]))
             else
                 push!(commands, ParsedCommand("join", arg_segments))
             end
-            continue
-        elseif ch == '$'
-            expr, newidx = parse_interpolation(raw, i)
-            push!(initial_segments, expr)
-            i = newidx
+            i = next_i
+        elseif ch == '|'
+            name, pos_after_name = parse_command_name(nextind(raw, i))
+            args = Any[]
+            i = pos_after_name
+            if i <= last && raw[i] == ':'
+                args, i = parse_segments_until(nextind(raw, i), ['|', '/'])
+            end
+            push!(commands, ParsedCommand(name, args))
         else
-            push_segment!(initial_segments, string(ch))
-            i = nextind(raw, i)
+            error("unexpected parser state at index $(i)")
         end
-    end
-
-    if idx_interp <= length(interpolations)
-        error("unused interpolations detected in input")
     end
 
     return ParsedPath(initial_segments, commands)
@@ -131,7 +113,13 @@ end
 
 function segments_expr(segments::Vector{Any})
     isempty(segments) && return ""
-    return :(string($(segments...)))
+    if all(segment -> segment isa String, segments)
+        return *(segments...)
+    elseif length(segments) == 1
+        return :(string($(segments[1])))
+    else
+        return :(string($(segments...)))
+    end
 end
 
 function lower_parsed(parsed::ParsedPath)

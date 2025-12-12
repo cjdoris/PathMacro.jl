@@ -20,7 +20,7 @@ const P = PathMacro
         @test parsed == P.ParsedPath(["foo"], expected_cmds)
 
         lowered = P.lower_parsed(parsed)
-        @test lowered == :(Base.joinpath("foo", "bar"))
+        @test lowered == :($(joinpath)("foo", "bar"))
 
         @test path"foo/bar" == joinpath("foo", "bar")
     end
@@ -31,7 +31,7 @@ const P = PathMacro
         @test parsed == P.ParsedPath(["foo"], expected_cmds)
 
         lowered = P.lower_parsed(parsed)
-        @test lowered == :(Base.dirname("foo"))
+        @test lowered == :($(dirname)("foo"))
 
         @test path"foo|dir" == dirname("foo")
     end
@@ -42,7 +42,7 @@ const P = PathMacro
         @test parsed == P.ParsedPath(["foo"], expected_cmds)
 
         lowered = P.lower_parsed(parsed)
-        @test lowered == :(Base.abspath("foo"))
+        @test lowered == :($(abspath)("foo"))
 
         @test path"foo|abs" == abspath("foo")
     end
@@ -53,7 +53,7 @@ const P = PathMacro
         @test parsed == P.ParsedPath(["foo"], expected_cmds)
 
         lowered = P.lower_parsed(parsed)
-        @test lowered == :(Base.joinpath("foo", "bar"))
+        @test lowered == :($(joinpath)("foo", "bar"))
 
         @test path"foo|join:bar" == joinpath("foo", "bar")
     end
@@ -67,7 +67,7 @@ const P = PathMacro
         @test parsed == P.ParsedPath(["foo"], expected_cmds)
 
         lowered = P.lower_parsed(parsed)
-        @test lowered == :(Base.dirname(Base.joinpath("foo", "bar")))
+        @test lowered == :($(dirname)($(joinpath)("foo", "bar")))
 
         @test path"foo/bar|dir" == dirname(joinpath("foo", "bar"))
     end
@@ -79,7 +79,7 @@ const P = PathMacro
         @test parsed == P.ParsedPath([:(foo)], expected_cmds)
 
         lowered = P.lower_parsed(parsed)
-        @test lowered == :(Base.dirname(string(foo)))
+        @test lowered == :($(dirname)(string(foo)))
 
         @test path"$foo/.." == dirname(foo)
     end
@@ -95,7 +95,7 @@ const P = PathMacro
         @test parsed == P.ParsedPath([:(foo)], expected_cmds)
 
         lowered = P.lower_parsed(parsed)
-        @test lowered == :(Base.relpath(Base.joinpath(string(foo), "bar"), string(baz)))
+        @test lowered == :($(relpath)($(joinpath)(string(foo), "bar"), string(baz)))
 
         @test path"$foo/bar|rel:$baz" == relpath(joinpath(foo, "bar"), baz)
     end
@@ -111,7 +111,7 @@ const P = PathMacro
         @test parsed == P.ParsedPath([:(foo2), ".d"], [P.ParsedCommand("dir", Any[]); expected_cmds])
 
         lowered = P.lower_parsed(parsed)
-        expected_lowered = :(Base.relpath(Base.joinpath(Base.dirname(string(foo2, ".d")), "bar"), string(baz2)))
+        expected_lowered = :($(relpath)($(joinpath)($(dirname)(string(foo2, ".d")), "bar"), string(baz2)))
         @test lowered == expected_lowered
 
         expected_value = relpath(joinpath(dirname(string(foo2, ".d")), "bar"), baz2)
@@ -128,7 +128,7 @@ const P = PathMacro
         @test parsed == P.ParsedPath(["foo"], expected_cmds)
 
         lowered = P.lower_parsed(parsed)
-        expected_lowered = :(Base.joinpath(Base.joinpath("foo", string(sub)), "baz"))
+        expected_lowered = :($(joinpath)($(joinpath)("foo", string(sub)), "baz"))
         @test lowered == expected_lowered
 
         @test path"foo/$sub|join:baz" == joinpath(joinpath("foo", sub), "baz")

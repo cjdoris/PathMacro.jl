@@ -34,13 +34,13 @@ function parse_path(input)
         return expr, newidx
     end
 
-    function parse_segments_until(start::Int, stops::Vector{Char})
+    function parse_segments(start::Int)
         segments = Any[]
         i = start
         last = lastindex(raw)
 
         while i <= last
-            idx = findnext(c -> c == '$' || c in stops, raw, i)
+            idx = findnext(c -> c == '$' || c == '|' || c == '/', raw, i)
 
             if idx === nothing
                 push_segment!(segments, raw[i:last])
@@ -81,14 +81,14 @@ function parse_path(input)
         return name, i
     end
 
-    initial_segments, i = parse_segments_until(firstindex(raw), ['|', '/'])
+    initial_segments, i = parse_segments(firstindex(raw))
     commands = ParsedCommand[]
     last = lastindex(raw)
 
     while i <= last
         ch = raw[i]
         if ch == '/'
-            arg_segments, next_i = parse_segments_until(nextind(raw, i), ['|', '/'])
+            arg_segments, next_i = parse_segments(nextind(raw, i))
             if length(arg_segments) == 1 && arg_segments[1] == ".."
                 push!(commands, ParsedCommand("dir", Any[]))
             else
@@ -100,7 +100,7 @@ function parse_path(input)
             args = Any[]
             i = pos_after_name
             if i <= last && raw[i] == ':'
-                args, i = parse_segments_until(nextind(raw, i), ['|', '/'])
+                args, i = parse_segments(nextind(raw, i))
             end
             push!(commands, ParsedCommand(name, args))
         else
@@ -115,10 +115,8 @@ function segments_expr(segments::Vector{Any})
     isempty(segments) && return ""
     if all(segment -> segment isa String, segments)
         return *(segments...)
-    elseif length(segments) == 1
-        return :(string($(segments[1])))
     else
-        return :(string($(segments...)))
+        return length(segments) == 1 ? :(string($(segments[1]))) : :(string($(segments...)))
     end
 end
 
@@ -129,16 +127,16 @@ function lower_parsed(parsed::ParsedPath)
         args = cmd.args
         if cmd.name == "join"
             isempty(args) && error("join requires an argument")
-            current = :(Base.joinpath($current, $(segments_expr(args))))
+            current = :($(joinpath)($current, $(segments_expr(args))))
         elseif cmd.name == "dir"
             !isempty(args) && error("dir does not take an argument")
-            current = :(Base.dirname($current))
+            current = :($(dirname)($current))
         elseif cmd.name == "abs"
             !isempty(args) && error("abs does not take an argument")
-            current = :(Base.abspath($current))
+            current = :($(abspath)($current))
         elseif cmd.name == "rel"
             isempty(args) && error("rel requires an argument")
-            current = :(Base.relpath($current, $(segments_expr(args))))
+            current = :($(relpath)($current, $(segments_expr(args))))
         else
             error("unknown command: $(cmd.name)")
         end

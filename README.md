@@ -8,6 +8,9 @@ PathMacro provides the `path"..."` string macro for building and transforming fi
 - `dir` → `dirname(value)`
 - `abs` → `abspath(value)`
 - `rel:arg` → `relpath(value, arg)`
+- `norm` → `normpath(value)`
+- `ext:arg` → replace the file extension with `arg` via `splitext`
+- `drive:arg` → replace the drive prefix with `arg` via `splitdrive`
 
 Shorthand:
 - `/arg` is equivalent to `|join:arg`

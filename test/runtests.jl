@@ -133,4 +133,68 @@ const P = PathMacro
 
         @test path"foo/$sub|join:baz" == joinpath(joinpath("foo", sub), "baz")
     end
+
+    @testset "norm command" begin
+        parsed = P.parse_path("foo/./bar|norm")
+        expected_cmds = [
+            P.ParsedCommand("join", ["."]),
+            P.ParsedCommand("join", ["bar"]),
+            P.ParsedCommand("norm", Any[]),
+        ]
+        @test parsed == P.ParsedPath(["foo"], expected_cmds)
+
+        lowered = P.lower_parsed(parsed)
+        expected_lowered = :($(normpath)($(joinpath)($(joinpath)("foo", "."), "bar")))
+        @test lowered == expected_lowered
+
+        @test path"foo/./bar|norm" == normpath(joinpath(joinpath("foo", "."), "bar"))
+    end
+
+    @testset "ext command" begin
+        parsed = P.parse_path("foo/bar.jl|ext:.txt")
+        expected_cmds = [
+            P.ParsedCommand("join", ["bar.jl"]),
+            P.ParsedCommand("ext", [".txt"]),
+        ]
+        @test parsed == P.ParsedPath(["foo"], expected_cmds)
+
+        lowered = P.lower_parsed(parsed)
+        expected_lowered = :(
+            let stem, ext
+                (stem, ext) = $(splitext)($(joinpath)("foo", "bar.jl"))
+                string(stem, ".txt")
+            end
+        )
+        @test Base.remove_linenums!(copy(lowered)) == Base.remove_linenums!(copy(expected_lowered))
+
+        expected_value = let stem, ext
+            (stem, ext) = splitext(joinpath("foo", "bar.jl"))
+            string(stem, ".txt")
+        end
+        @test path"foo/bar.jl|ext:.txt" == expected_value
+    end
+
+    @testset "drive command" begin
+        parsed = P.parse_path("foo/bar|drive:D:")
+        expected_cmds = [
+            P.ParsedCommand("join", ["bar"]),
+            P.ParsedCommand("drive", ["D:"]),
+        ]
+        @test parsed == P.ParsedPath(["foo"], expected_cmds)
+
+        lowered = P.lower_parsed(parsed)
+        expected_lowered = :(
+            let drv, tail
+                (drv, tail) = $(splitdrive)($(joinpath)("foo", "bar"))
+                string("D:", tail)
+            end
+        )
+        @test Base.remove_linenums!(copy(lowered)) == Base.remove_linenums!(copy(expected_lowered))
+
+        expected_value = let drv, tail
+            (drv, tail) = splitdrive(joinpath("foo", "bar"))
+            string("D:", tail)
+        end
+        @test path"foo/bar|drive:D:" == expected_value
+    end
 end

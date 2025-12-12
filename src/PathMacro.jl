@@ -137,6 +137,27 @@ function lower_parsed(parsed::ParsedPath)
         elseif cmd.name == "rel"
             isempty(args) && error("rel requires an argument")
             current = :($(relpath)($current, $(segments_expr(args))))
+        elseif cmd.name == "norm"
+            !isempty(args) && error("norm does not take an argument")
+            current = :($(normpath)($current))
+        elseif cmd.name == "ext"
+            isempty(args) && error("ext requires an argument")
+            arg_expr = segments_expr(args)
+            current = :(
+                let stem, ext
+                    (stem, ext) = $(splitext)($current)
+                    string(stem, $arg_expr)
+                end
+            )
+        elseif cmd.name == "drive"
+            isempty(args) && error("drive requires an argument")
+            arg_expr = segments_expr(args)
+            current = :(
+                let drv, tail
+                    (drv, tail) = $(splitdrive)($current)
+                    string($arg_expr, tail)
+                end
+            )
         else
             error("unknown command: $(cmd.name)")
         end

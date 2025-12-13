@@ -126,8 +126,15 @@ function setext(path, newext)
 end
 
 function setdrive(path, newdrive)
-    _, tail = splitdrive(path)
-    return string(newdrive, tail)
+    if Sys.iswindows()
+        _, tail = splitdrive(path)
+        return string(newdrive, tail)
+    else
+        if !isempty(newdrive)
+            throw(ArgumentError("drive changes are only supported on Windows; use an empty drive elsewhere"))
+        end
+        return path
+    end
 end
 
 function lower_parsed(parsed::ParsedPath)

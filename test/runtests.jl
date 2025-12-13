@@ -178,19 +178,30 @@ const P = PathMacro
         expected_lowered = :($(P.setdrive)($(joinpath)("foo", "bar"), "D:"))
         @test Base.remove_linenums!(copy(lowered)) == Base.remove_linenums!(copy(expected_lowered))
 
-        expected_value = P.setdrive(joinpath("foo", "bar"), "D:")
-        @test path"foo/bar|drive:D:" == expected_value
+        if Sys.iswindows()
+            expected_value = P.setdrive(joinpath("foo", "bar"), "D:")
+            @test path"foo/bar|drive:D:" == expected_value
+        else
+            @test_throws ArgumentError path"foo/bar|drive:D:"
+        end
     end
 
-    @testset "setext and setdrive helpers" begin
+    @testset "setext helper" begin
         @test P.setext("/tmp/foo.jl", ".txt") == "/tmp/foo.txt"
         @test P.setext("/tmp/foo", ".md") == "/tmp/foo.md"
+    end
 
+    @testset "setdrive helper" begin
         original = Sys.iswindows() ? "C:/path/file" : "/tmp/file"
-        expected_drive = begin
+
+        if Sys.iswindows()
             _, tail = splitdrive(original)
-            string("D:", tail)
+            expected_drive = string("D:", tail)
+            @test P.setdrive(original, "D:") == expected_drive
+            @test P.setdrive(original, "") == string("", tail)
+        else
+            @test P.setdrive(original, "") == original
+            @test_throws ArgumentError P.setdrive(original, "D:")
         end
-        @test P.setdrive(original, "D:") == expected_drive
     end
 end

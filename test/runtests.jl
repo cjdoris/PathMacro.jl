@@ -159,18 +159,10 @@ const P = PathMacro
         @test parsed == P.ParsedPath(["foo"], expected_cmds)
 
         lowered = P.lower_parsed(parsed)
-        expected_lowered = :(
-            let stem, ext
-                (stem, ext) = $(splitext)($(joinpath)("foo", "bar.jl"))
-                string(stem, ".txt")
-            end
-        )
+        expected_lowered = :($(P.setext)($(joinpath)("foo", "bar.jl"), ".txt"))
         @test Base.remove_linenums!(copy(lowered)) == Base.remove_linenums!(copy(expected_lowered))
 
-        expected_value = let stem, ext
-            (stem, ext) = splitext(joinpath("foo", "bar.jl"))
-            string(stem, ".txt")
-        end
+        expected_value = P.setext(joinpath("foo", "bar.jl"), ".txt")
         @test path"foo/bar.jl|ext:.txt" == expected_value
     end
 
@@ -183,18 +175,22 @@ const P = PathMacro
         @test parsed == P.ParsedPath(["foo"], expected_cmds)
 
         lowered = P.lower_parsed(parsed)
-        expected_lowered = :(
-            let drv, tail
-                (drv, tail) = $(splitdrive)($(joinpath)("foo", "bar"))
-                string("D:", tail)
-            end
-        )
+        expected_lowered = :($(P.setdrive)($(joinpath)("foo", "bar"), "D:"))
         @test Base.remove_linenums!(copy(lowered)) == Base.remove_linenums!(copy(expected_lowered))
 
-        expected_value = let drv, tail
-            (drv, tail) = splitdrive(joinpath("foo", "bar"))
+        expected_value = P.setdrive(joinpath("foo", "bar"), "D:")
+        @test path"foo/bar|drive:D:" == expected_value
+    end
+
+    @testset "setext and setdrive helpers" begin
+        @test P.setext("/tmp/foo.jl", ".txt") == "/tmp/foo.txt"
+        @test P.setext("/tmp/foo", ".md") == "/tmp/foo.md"
+
+        original = Sys.iswindows() ? "C:/path/file" : "/tmp/file"
+        expected_drive = begin
+            _, tail = splitdrive(original)
             string("D:", tail)
         end
-        @test path"foo/bar|drive:D:" == expected_value
+        @test P.setdrive(original, "D:") == expected_drive
     end
 end

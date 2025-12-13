@@ -120,6 +120,16 @@ function segments_expr(segments::Vector{Any})
     end
 end
 
+function setext(path, newext)
+    stem, _ = splitext(path)
+    return string(stem, newext)
+end
+
+function setdrive(path, newdrive)
+    _, tail = splitdrive(path)
+    return string(newdrive, tail)
+end
+
 function lower_parsed(parsed::ParsedPath)
     current = segments_expr(parsed.initial)
 
@@ -143,21 +153,11 @@ function lower_parsed(parsed::ParsedPath)
         elseif cmd.name == "ext"
             isempty(args) && error("ext requires an argument")
             arg_expr = segments_expr(args)
-            current = :(
-                let stem, ext
-                    (stem, ext) = $(splitext)($current)
-                    string(stem, $arg_expr)
-                end
-            )
+            current = :($(setext)($current, $arg_expr))
         elseif cmd.name == "drive"
             isempty(args) && error("drive requires an argument")
             arg_expr = segments_expr(args)
-            current = :(
-                let drv, tail
-                    (drv, tail) = $(splitdrive)($current)
-                    string($arg_expr, tail)
-                end
-            )
+            current = :($(setdrive)($current, $arg_expr))
         else
             error("unknown command: $(cmd.name)")
         end

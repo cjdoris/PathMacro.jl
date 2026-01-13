@@ -186,6 +186,50 @@ const P = PathMacro
         end
     end
 
+    @testset "initial path commands" begin
+        @test path"|curdir" == pwd()
+        @test path"|curdir/foo" == joinpath(pwd(), "foo")
+        @test path"|srcfile" == @__FILE__
+        @test path"|homedir" == homedir()
+
+        if isempty(@__FILE__)
+            @test_throws ErrorException path"|srcdir"
+        else
+            @test path"|srcdir" == dirname(@__FILE__)
+        end
+
+        if isempty(Base.PROGRAM_FILE)
+            @test_throws ErrorException path"|progfile"
+        else
+            @test path"|progfile" == Base.PROGRAM_FILE
+        end
+
+        @test path"|pathof:PathMacro" == pathof(PathMacro)
+
+        if pathof(Main) === nothing
+            @test_throws ErrorException path"|pathof:Main"
+        else
+            @test path"|pathof:Main" == pathof(Main)
+        end
+
+        @test_throws LoadError eval(:(path"|pathof:1"))
+
+        @test_throws LoadError eval(:(path"foo|curdir"))
+        @test_throws LoadError eval(:(path"foo|srcfile"))
+        @test_throws LoadError eval(:(path"foo|srcdir"))
+        @test_throws LoadError eval(:(path"foo|homedir"))
+        @test_throws LoadError eval(:(path"foo|progfile"))
+        @test_throws LoadError eval(:(path"foo|pathof:PathMacro"))
+    end
+
+    @testset "initial segment sugar" begin
+        @test path"." == pwd()
+        @test path".." == dirname(pwd())
+        @test path"../foo" == joinpath(dirname(pwd()), "foo")
+        @test path"@" == @__FILE__
+        @test path"~/foo" == joinpath(homedir(), "foo")
+    end
+
     @testset "setext helper" begin
         @test P.setext("/tmp/foo.jl", ".txt") == "/tmp/foo.txt"
         @test P.setext("/tmp/foo", ".md") == "/tmp/foo.md"

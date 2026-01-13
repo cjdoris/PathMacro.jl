@@ -137,8 +137,36 @@ function setdrive(path, newdrive)
     end
 end
 
-function lower_parsed(parsed::ParsedPath)
+function ensure_nonempty(value, label)
+    if value === nothing || value == ""
+        error("$(label) is empty")
+    end
+    return value
+end
+
+curdir_path() = pwd()
+srcfile_path(file) = file === nothing ? "" : string(file)
+srcdir_path(file) = ensure_nonempty(dirname(ensure_nonempty(srcfile_path(file), "source file")), "source dir")
+homedir_path() = homedir()
+progfile_path() = ensure_nonempty(Base.PROGRAM_FILE, "program file")
+pathof_path(mod) = ensure_nonempty(pathof(mod), "pathof")
+
+function lower_parsed(parsed::ParsedPath; source = LineNumberNode(0, Symbol("")))
     current = segments_expr(parsed.initial)
+    source_file = QuoteNode(source.file)
+
+    if length(parsed.initial) == 1 && parsed.initial[1] isa String
+        segment = parsed.initial[1]
+        if segment == "."
+            current = :($(curdir_path)())
+        elseif segment == ".."
+            current = :($(dirname)($(curdir_path)()))
+        elseif segment == "@"
+            current = :($(srcfile_path)($source_file))
+        elseif segment == "~"
+            current = :($(homedir_path)())
+        end
+    end
 
     for cmd in parsed.commands
         args = cmd.args
@@ -165,6 +193,37 @@ function lower_parsed(parsed::ParsedPath)
             isempty(args) && error("drive requires an argument")
             arg_expr = segments_expr(args)
             current = :($(setdrive)($current, $arg_expr))
+        elseif cmd.name == "curdir"
+            !isempty(args) && error("curdir does not take an argument")
+            current == "" || error("curdir must appear at the start of a path macro")
+            current = :($(curdir_path)())
+        elseif cmd.name == "srcfile"
+            !isempty(args) && error("srcfile does not take an argument")
+            current == "" || error("srcfile must appear at the start of a path macro")
+            current = :($(srcfile_path)($source_file))
+        elseif cmd.name == "srcdir"
+            !isempty(args) && error("srcdir does not take an argument")
+            current == "" || error("srcdir must appear at the start of a path macro")
+            current = :($(srcdir_path)($source_file))
+        elseif cmd.name == "homedir"
+            !isempty(args) && error("homedir does not take an argument")
+            current == "" || error("homedir must appear at the start of a path macro")
+            current = :($(homedir_path)())
+        elseif cmd.name == "progfile"
+            !isempty(args) && error("progfile does not take an argument")
+            current == "" || error("progfile must appear at the start of a path macro")
+            current = :($(progfile_path)())
+        elseif cmd.name == "pathof"
+            length(args) == 1 || error("pathof requires a single argument")
+            current == "" || error("pathof must appear at the start of a path macro")
+            arg_expr = args[1]
+            if arg_expr isa String
+                arg_expr = Meta.parse(arg_expr)
+            end
+            if !(arg_expr isa Expr || arg_expr isa Symbol)
+                error("pathof requires a module name")
+            end
+            current = :($(pathof_path)($arg_expr))
         else
             error("unknown command: $(cmd.name)")
         end
@@ -180,7 +239,7 @@ A string macro for chaining filesystem path transformations with a pipeline-like
 """
 macro path_str(input)
     parsed = parse_path(input)
-    lowered = lower_parsed(parsed)
+    lowered = lower_parsed(parsed; source = __source__)
     return esc(lowered)
 end
 
